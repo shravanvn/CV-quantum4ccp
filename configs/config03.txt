@@ -1,0 +1,9 @@
+# file format specification
+# - lines starting with '#' are ignored
+# - each non-comment line contains 8 floating point numbers specifying the state of one sphere
+# - the numbers are mass, radius, position(x,y,z) and velocity(x,y,z) in that order
+#
+# mass radius  pos_x  pos_y  pos_z  vel_x  vel_y  vel_z
+   1.0    1.0   -1.0    0.0    0.0    1.0    0.0    0.0
+   1.0    1.0    1.0    0.0    0.0   -1.0    0.0    0.0
+   1.0    1.0    0.0    0.0    2.5    0.0    0.0  -25.0
