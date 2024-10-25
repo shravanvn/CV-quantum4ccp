@@ -112,8 +112,13 @@ if __name__ == '__main__':
         'outputDir': args.outputDir
     }
 
+    solverConfig2 = {
+        'name': 'hgd',
+
+    }
+
     system.output(args.outputDir)
     for iStep in range(args.nStep):
-        system.step(solverConfig)
+        system.step(solverConfig2)
         if args.outputFrequency > 1 and (iStep + 1) % args.outputFrequency == 0:
             system.output(args.outputDir)

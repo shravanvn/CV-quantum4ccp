@@ -127,5 +127,7 @@ def solveLcp(A, b, config):
 def solveCcp(A, b, mu, config):
     if config['name'] == 'apgd':
         return apgdCcp(A, b, mu, config)
+    elif config['name'] == 'hgd':
+        return hgdCcp(A, b, mu, config)
 
     raise ValueError('unknown collision solver "' + config['name'] + '"')
