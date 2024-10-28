@@ -4,3 +4,4 @@ sam_stuff/
 __pycache__/
 *.egg-info/
 *.ipynb/
+**/data
