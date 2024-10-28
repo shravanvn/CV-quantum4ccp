@@ -119,18 +119,15 @@ def apgdCcp(A, b, mu, config):
     return apgd(A, b, np.ones_like(b), project, computeResidual, config)
 
 
-def hgdCcp(A, b, mu, config, x0=None):
+def hgdCcp(A, b, mu, config):
     maxIter = config['maxIter']
-    residualTol = config['residualTol']
-    stepSizeTol = config['stepSizeTol']
-    logFileName = config['logFileName']
 
     #initialize variables (currently assuming only a single contact!)
     gamma1, gamma2, gamma3, s1, s2, lam1, lam2 = sy.symbols('gamma_1, gamma_2, gamma_3, s_1, s_2, lambda_1, lambda_2')
     gamma = sy.Matrix([gamma1, gamma2, gamma3])
     variables = [gamma1, gamma2, gamma3, s1, s2, lam1, lam2]
-    self.A = sy.Matrix(A)
-    self.b = sy.Matrix(b)
+    A = sy.Matrix(A)
+    b = sy.Matrix(b)
 
     #construct Hamiltonian using sympy,
     f = sy.Rational(1, 2)*gamma.T@A@gamma + b.T@gamma
@@ -146,14 +143,14 @@ def hgdCcp(A, b, mu, config, x0=None):
         return jac(x).reshape(7)
     grad_H_fun = grad_H_fun
 
-    if x0 is None:
-        gamma_n0 = np.random.uniform(0, 1)
-        scale = np.random.uniform(-1, 1, 2)
-        gamma0 = np.array([gamma_n0, scale[0]*np.sqrt(gamma_n0**2/2), scale[0]*np.sqrt(gamma_n0**2/2)])
-        s0 = np.random.uniform(0, 1, 2)
-        lam0 = -np.random.uniform(0, 1, 2)
-        x0 = np.concatenate((gamma0, s0, lam0))
-    sol = minimize(H_fun, x0, method='BFGS', jac=grad_H_fun, maxIter=maxIter, residualTol=residualTol, stepSizeTol=stepSizeTol, logFileName=logFileName)
+    #generate random initial guess and solve
+    gamma_n0 = np.random.uniform(0, 1)
+    scale = np.random.uniform(-1, 1, 2)
+    gamma0 = np.array([gamma_n0, scale[0]*np.sqrt(gamma_n0**2/2), scale[0]*np.sqrt(gamma_n0**2/2)])
+    s0 = np.random.uniform(0, 1, 2)
+    lam0 = -np.random.uniform(0, 1, 2)
+    x0 = np.concatenate((gamma0, s0, lam0))
+    sol = minimize(H_fun, x0, method='BFGS', jac=grad_H_fun, options={'maxiter': maxIter})
     return sol.x[:3]
 
 

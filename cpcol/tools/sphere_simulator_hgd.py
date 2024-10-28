@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+from tqdm import tqdm
 
 from cpcol.sphere_system import \
     SphereSystemNoFriction, \
@@ -32,7 +33,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--nStep',
         type=int,
-        default=1000,
+        default=100,
         help='number of time steps'
     )
     parser.add_argument(
@@ -105,15 +106,15 @@ if __name__ == '__main__':
         raise ValueError('unknown collisionSolver')
 
     solverConfig = {
-        'name': 'apgd',
+        'name': 'hgd',
         'maxIter': 1000,
-        'residualTol': 1.0e-06,
-        'stepSizeTol': 1.0e-12,
-        'outputDir': args.outputDir
-    }
+        'outputDir': args.outputDir}
 
+    progress = tqdm(total=args.nStep)
     system.output(args.outputDir)
     for iStep in range(args.nStep):
         system.step(solverConfig)
+        progress.update(1)
         if args.outputFrequency > 1 and (iStep + 1) % args.outputFrequency == 0:
             system.output(args.outputDir)
+    progress.close()
