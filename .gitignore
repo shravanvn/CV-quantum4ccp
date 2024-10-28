@@ -1,4 +1,5 @@
 env/
+sam_stuff/
 
 __pycache__/
 *.egg-info/

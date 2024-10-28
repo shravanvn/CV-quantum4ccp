@@ -1,4 +1,6 @@
 import numpy as np
+import sympy as sy
+from scipy.optimize import minimize
 
 
 def apgd(A, b, x, project, computeResidual, config):
@@ -115,6 +117,44 @@ def apgdCcp(A, b, mu, config):
         return residual
 
     return apgd(A, b, np.ones_like(b), project, computeResidual, config)
+
+
+def hgdCcp(A, b, mu, config, x0=None):
+    maxIter = config['maxIter']
+    residualTol = config['residualTol']
+    stepSizeTol = config['stepSizeTol']
+    logFileName = config['logFileName']
+
+    #initialize variables (currently assuming only a single contact!)
+    gamma1, gamma2, gamma3, s1, s2, lam1, lam2 = sy.symbols('gamma_1, gamma_2, gamma_3, s_1, s_2, lambda_1, lambda_2')
+    gamma = sy.Matrix([gamma1, gamma2, gamma3])
+    variables = [gamma1, gamma2, gamma3, s1, s2, lam1, lam2]
+    self.A = sy.Matrix(A)
+    self.b = sy.Matrix(b)
+
+    #construct Hamiltonian using sympy,
+    f = sy.Rational(1, 2)*gamma.T@A@gamma + b.T@gamma
+    L = f[0] + lam1*(mu**2*gamma1**2 - gamma2**2 - gamma3**2 - s1**2) + lam2*(mu*gamma1 - s2**2)
+    grad_L = [sy.diff(L, variables[i]) for i in range(len(variables))]
+    H = sy.Rational(1, 2)*sum([entry**2 for entry in grad_L])
+    H_fun = sy.lambdify([variables], H)
+
+    #get the Jacobian of H, then create function version
+    grad_H = sy.Matrix([sy.diff(H, variables[i]) for i in range(len(variables))]).T
+    def grad_H_fun(x):
+        jac = sy.lambdify([variables], grad_H)
+        return jac(x).reshape(7)
+    grad_H_fun = grad_H_fun
+
+    if x0 is None:
+        gamma_n0 = np.random.uniform(0, 1)
+        scale = np.random.uniform(-1, 1, 2)
+        gamma0 = np.array([gamma_n0, scale[0]*np.sqrt(gamma_n0**2/2), scale[0]*np.sqrt(gamma_n0**2/2)])
+        s0 = np.random.uniform(0, 1, 2)
+        lam0 = -np.random.uniform(0, 1, 2)
+        x0 = np.concatenate((gamma0, s0, lam0))
+    sol = minimize(H_fun, x0, method='BFGS', jac=grad_H_fun, maxIter=maxIter, residualTol=residualTol, stepSizeTol=stepSizeTol, logFileName=logFileName)
+    return sol.x[:3]
 
 
 def solveLcp(A, b, config):
