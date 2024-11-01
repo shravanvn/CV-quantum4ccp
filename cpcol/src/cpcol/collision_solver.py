@@ -1,6 +1,37 @@
 import numpy as np
 
 
+# residual computations -------------------------------------------------------
+
+
+def residualLcp(x, g):
+    return max(0.0, np.abs(x * g).max(), -x.min(), -g.min())
+
+
+def residualCcp(x, g, mu):
+    n = x.shape[0] // 3
+    residual = 0.0
+
+    for i in range(n):
+        xn = x[3 * i]
+        x1 = x[3 * i + 1]
+        x2 = x[3 * i + 2]
+
+        gn = g[3 * i]
+        g1 = g[3 * i + 1]
+        g2 = g[3 * i + 2]
+
+        residual = max(residual,
+                       np.hypot(x1, x2) - xn * mu,
+                       np.hypot(g1, g2) - gn / mu,
+                       np.abs(xn * gn + x1 * g1 + x2 * g2))
+
+    return residual
+
+
+# accelerated projected gradient descent solver -------------------------------
+
+
 def apgd(A, b, x, project, computeResidual, config):
     maxIter = config['maxIter']
     residualTol = config['residualTol']
@@ -62,10 +93,7 @@ def apgdLcp(A, b, config):
     def project(x):
         return np.maximum(x, np.zeros_like(x))
 
-    def computeResidual(x, g):
-        return max(0.0, np.abs(x * g).max(), -x.min(), -g.min())
-
-    return apgd(A, b, np.ones_like(b), project, computeResidual, config)
+    return apgd(A, b, np.ones_like(b), project, residualLcp, config)
 
 
 def apgdCcp(A, b, mu, config):
@@ -95,31 +123,77 @@ def apgdCcp(A, b, mu, config):
 
         return x
 
-    def computeResidual(x, g):
-        residual = 0.0
+    return apgd(A, b, np.ones_like(b), project,
+                lambda x, g: residualCcp(x, g, mu), config)
 
-        for i in range(n):
-            xn = x[3 * i]
-            x1 = x[3 * i + 1]
-            x2 = x[3 * i + 2]
 
-            gn = g[3 * i]
-            g1 = g[3 * i + 1]
-            g2 = g[3 * i + 2]
+# minimum-map Netwon solver (only for LCP) ------------------------------------
 
-            residual = max(residual,
-                           np.hypot(x1, x2) - xn * mu,
-                           np.hypot(g1, g2) - gn / mu,
-                           np.abs(xn * gn + x1 * g1 + x2 * g2))
 
-        return residual
+def mmnewtonLcp(A, b, config):
+    maxIter = config['maxIter']
+    residualTol = config['residualTol']
+    stepSizeTol = config['stepSizeTol']
+    logFileName = config['logFileName']
 
-    return apgd(A, b, np.ones_like(b), project, computeResidual, config)
+    x = np.ones_like(b)
+
+    with open(logFileName, 'w') as fp:
+        fp.write('{:>9s} {:>12s} {:>12s} {:>11s} {:>10s}\n'.format(
+            'iteration', 'residual', 'stepSize', 'matVecCount', 'solveCount'))
+
+        matVecCount = 0
+        solveCount = 0
+
+        for k in range(1, maxIter + 1):
+            g = A @ x + b
+            matVecCount += 1
+
+            residual = residualLcp(x, g)
+            if residual < residualTol:
+                fp.write('{:>9d} {:>12.6e} {:>12s} {:>11d} {:>10d}\n'.format(
+                    k, residual, '', matVecCount, solveCount))
+                break
+
+            phi = np.minimum(x, g)
+
+            indsA = (g < x)
+            indsB = (g >= x)
+
+            if all(indsA):
+                dx = np.linalg.solve(A, -phi)
+                solveCount += 1
+            elif all(indsB):
+                dx = -phi
+            else:
+                dx = np.zeros_like(x)
+                dx[indsA] = np.linalg.solve(
+                    A[indsA, :][:, indsA],
+                    A[indsA, :][:, indsB] @ phi[indsB] - phi[indsA]
+                )
+                dx[indsB] = -phi[indsB]
+                solveCount += 1
+
+            stepSize = np.linalg.norm(dx)
+            fp.write('{:>9d} {:>12.6e} {:>12.6e} {:>11d} {:>10d}\n'.format(
+                k, residual, stepSize, matVecCount, solveCount))
+
+            if stepSize < stepSizeTol:
+                break
+
+            x += dx
+
+    return x
+
+
+# interface imported by sphere simulator --------------------------------------
 
 
 def solveLcp(A, b, config):
     if config['name'] == 'apgd':
         return apgdLcp(A, b, config)
+    elif config['name'] == 'mmnewton':
+        return mmnewtonLcp(A, b, config)
 
     raise ValueError('unknown collision solver "' + config['name'] + '"')
 
