@@ -113,7 +113,7 @@ if __name__ == '__main__':
     }
 
     system.output(args.outputDir)
-    for iStep in range(args.nStep):
+    for iStep in range(1, args.nStep + 1):
         system.step(solverConfig)
-        if args.outputFrequency > 1 and (iStep + 1) % args.outputFrequency == 0:
+        if args.outputFrequency > 0 and iStep % args.outputFrequency == 0:
             system.output(args.outputDir)
