@@ -11,11 +11,11 @@ from cpcol.sphere_system import \
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--collisionSolver',
+        '--frictionModel',
         type=str,
         required=True,
-        choices=['NoFriction', 'WithFrictionLcp', 'WithFrictionCcp'],
-        help='type of collision resolution'
+        choices=['none', 'linearized', 'quadratic'],
+        help='frictional contact force model'
     )
     parser.add_argument(
         '--configFile',
@@ -80,13 +80,13 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.collisionSolver == 'NoFriction':
+    if args.frictionModel == 'none':
         system = SphereSystemNoFriction(args.configFile,
                                         args.shellRadius,
                                         args.stepSize,
                                         args.accelerationDueToGravity,
                                         args.collisionBuffer)
-    elif args.collisionSolver == 'WithFrictionLcp':
+    elif args.frictionModel == 'linearized':
         system = SphereSystemWithFrictionLcp(args.configFile,
                                              args.shellRadius,
                                              args.stepSize,
@@ -94,7 +94,7 @@ if __name__ == '__main__':
                                              args.collisionBuffer,
                                              args.frictionCoefficient,
                                              args.nSideLinearCone)
-    elif args.collisionSolver == 'WithFrictionCcp':
+    elif args.frictionModel == 'quadratic':
         system = SphereSystemWithFrictionCcp(args.configFile,
                                              args.shellRadius,
                                              args.stepSize,
@@ -102,7 +102,7 @@ if __name__ == '__main__':
                                              args.collisionBuffer,
                                              args.frictionCoefficient)
     else:
-        raise ValueError('unknown collisionSolver')
+        raise ValueError('unknown frictionModel')
 
     solverConfig = {
         'name': 'apgd',
