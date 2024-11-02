@@ -3,41 +3,27 @@ import os
 import numpy as np
 from vtk import vtkPoints, vtkDoubleArray, vtkPolyData, vtkXMLPolyDataWriter
 
-from .collision_solver import solveLcp, solveCcp
-
-
-def computeTangentDirections(normal):
-    # determine an orthogonal direction to normal via Gram-Schmidt with one of
-    # the standard 3D basis vectors
-    if np.abs(normal[0]) > 1 / np.sqrt(3):
-        # normal is dominantly 'incident' towards (1, 0, 0)
-        # try tangent direction towards (0, 1, 0) for numerical stability
-        tangent1 = np.array([0.0, 1.0, 0.0])
-    else:
-        tangent1 = np.array([1.0, 0.0, 0.0])
-
-    tangent1 -= np.dot(normal, tangent1) * normal
-    tangent1 /= np.linalg.norm(tangent1)
-
-    # third orthogonal direction is cross product of above two
-    tangent2 = np.cross(normal, tangent1)
-
-    return tangent1, tangent2
-
 
 class SphereSystem(object):
-    def __init__(self, initConfigFile, shellRadius, stepSize=1.0e-02,
-                 accelerationDueToGravity=10.0, collisionBuffer=0.1):
-        self.readConfig(initConfigFile)
+    def __init__(self, initConfig, shellRadius, accelerationDueToGravity,
+                 stepSize, numStep, outputFreq, outputDir, collisionBuffer,
+                 useSeparations):
+        self.readConfig(initConfig)
         self.shellRadius = shellRadius
-        self.stepSize = stepSize
-        self.collisionBuffer = collisionBuffer
         self.accelerationDueToGravity = accelerationDueToGravity
+        self.stepSize = stepSize
+        self.numStep = numStep
+        self.outputFreq = outputFreq
+        self.outputDir = outputDir
+        self.collisionBuffer = collisionBuffer
+        self.useSeparations = useSeparations
+
+        os.makedirs(self.outputDir, exist_ok=True)
+        self.stepInd = 0
+        self.outputInd = 0
         self.computeInverseMassMatrix()
         self.vKnown = np.zeros((3 * self.nSphere,))
         self.forceCol = np.zeros((3 * self.nSphere,))
-        self.stepInd = 0
-        self.outputInd = 0
 
     def readConfig(self, configFile):
         data = np.loadtxt(configFile)
@@ -94,38 +80,32 @@ class SphereSystem(object):
         self.collisionNormals = np.array(collisionNormals)
         self.collisionSeparations = np.array(collisionSeparations)
 
-    def computeDirectionMatrix(self):
-        raise NotImplementedError
-
-    def setupComplementarityProblem(self):
-        raise NotImplementedError
-
-    def computeContactForce(self, A, b):
-        raise NotImplementedError
-
-    def step(self, solverConfig):
+    def step(self, friction_model, solver):
         self.stepInd += 1
-        solverConfig['logFileName'] = \
-            os.path.join(solverConfig['outputDir'],
-                         'stats_{:06d}.txt'.format(self.stepInd))
 
         self.forceCol.fill(0.0)
         self.computeVelocityKnown()
         self.detectCollisions()
         if self.nCollision > 0:
-            self.computeDirectionMatrix()
-            A, b = self.setupComplementarityProblem()
-            self.computeContactForce(A, b, solverConfig)
+            friction_model.computeDirectionMatrix(self.nSphere,
+                                                  self.collisionPairs,
+                                                  self.collisionNormals)
+            friction_model.computeComplementarityProblem(self.MInv,
+                                                         self.vKnown)
+            if not self.useSeparations:
+                self.forceCol = friction_model.computeContactForce(
+                    self.stepInd, solver)
+            else:
+                self.forceCol = friction_model.computeContactForce(
+                    self.stepInd, solver,
+                    self.collisionSeparations / self.stepSize)
             self.velocity = self.vKnown + self.MInv @ self.forceCol
         else:
             self.velocity = self.vKnown
         self.position += self.stepSize * self.velocity
 
-    def output(self, dataDir):
-        os.makedirs(dataDir, exist_ok=True)
-
-        self.outputInd += 1
-        file_name = os.path.join(dataDir,
+    def output(self):
+        file_name = os.path.join(self.outputDir,
                                  'snapshot_{:06d}.vtp'.format(self.outputInd))
 
         points = vtkPoints()
@@ -174,141 +154,26 @@ class SphereSystem(object):
         writer.SetFileName(file_name)
         writer.Write()
 
+        self.outputInd += 1
 
-class SphereSystemNoFriction(SphereSystem):
-    def __init__(self, initConfigFile, shellRadius, stepSize=1.0e-02,
-                 accelerationDueToGravity=10.0, collisionBuffer=0.1):
-        super().__init__(initConfigFile, shellRadius, stepSize,
-                         accelerationDueToGravity, collisionBuffer)
-        self.Dn = None
-
-    def computeDirectionMatrix(self):
-        self.Dn = np.zeros((3 * self.nSphere, self.nCollision))
-
-        for k in range(self.nCollision):
-            i = self.collisionPairs[k, 0]
-            j = self.collisionPairs[k, 1]
-
-            if i >= 0:
-                iStart, iStop = 3 * i, 3 * i + 3
-                self.Dn[iStart:iStop, k] = -self.collisionNormals[k, :]
-
-            jStart, jStop = 3 * j, 3 * j + 3
-            self.Dn[jStart:jStop, k] = self.collisionNormals[k, :]
-
-    def setupComplementarityProblem(self):
-        A = self.Dn.T @ self.MInv @ self.Dn
-        b = self.Dn.T @ self.vKnown
-        return A, b
-
-    def computeContactForce(self, A, b, solverConfig):
-        gamma = solveLcp(A, b, solverConfig)
-        self.forceCol = self.Dn @ gamma
+    def run(self, friction_model, solver):
+        self.output()
+        for iStep in range(1, self.numStep + 1):
+            self.step(friction_model, solver)
+            if self.outputFreq > 0 and iStep % self.outputFreq == 0:
+                self.output()
 
 
-class SphereSystemWithFrictionLcp(SphereSystem):
-    def __init__(self, initConfigFile, shellRadius, stepSize=1.0e-02,
-                 accelerationDueToGravity=10.0,  collisionBuffer=0.1,
-                 frictionCoefficient=0.25, nSideLinearCone=8):
-        super().__init__(initConfigFile, shellRadius, stepSize,
-                         accelerationDueToGravity, collisionBuffer)
-        self.frictionCoefficient = frictionCoefficient
-        self.nSideLinearCone = nSideLinearCone
-        self.Dn = None
-        self.Dt = None
-
-    def computeDirectionMatrix(self):
-        dTheta = 2.0 * np.pi / self.nSideLinearCone
-        theta = dTheta * np.arange(self.nSideLinearCone)
-
-        refDt = np.stack((np.cos(theta), np.sin(theta)))
-
-        self.Dn = np.zeros((3 * self.nSphere, self.nCollision))
-        self.Dt = np.zeros((3 * self.nSphere,
-                            self.nSideLinearCone * self.nCollision))
-
-        for k in range(self.nCollision):
-            i = self.collisionPairs[k, 0]
-            j = self.collisionPairs[k, 1]
-
-            tangent1, tangent2 = \
-                computeTangentDirections(self.collisionNormals[k, :])
-            localDt = np.stack((tangent1, tangent2)).T @ refDt
-
-            if i >= 0:
-                iStart, iStop = 3 * i, 3 * i + 3
-                self.Dn[iStart:iStop, k] = -self.collisionNormals[k, :]
-                for s in range(self.nSideLinearCone):
-                    self.Dt[iStart:iStop, self.nSideLinearCone * k + s] = \
-                        -localDt[:, s]
-
-            jStart, jStop = 3 * j, 3 * j + 3
-            self.Dn[jStart:jStop, k] = self.collisionNormals[k, :]
-            for s in range(self.nSideLinearCone):
-                self.Dt[jStart:jStop, self.nSideLinearCone * k + s] = \
-                    localDt[:, s]
-
-    def setupComplementarityProblem(self):
-        E = np.kron(np.eye(self.nCollision),
-                    np.ones((self.nSideLinearCone, 1)))
-
-        A = np.block([[self.Dn.T @ self.MInv @ self.Dn,
-                       self.Dn.T @ self.MInv @ self.Dt,
-                       np.zeros((self.nCollision, self.nCollision))],
-                      [self.Dt.T @ self.MInv @ self.Dn,
-                       self.Dt.T @ self.MInv @ self.Dt,
-                       E],
-                      [self.frictionCoefficient * np.eye(self.nCollision),
-                       -E.T,
-                       np.zeros((self.nCollision, self.nCollision))]])
-        b = np.hstack((self.Dn.T @ self.vKnown,
-                       self.Dt.T @ self.vKnown,
-                       np.zeros(self.nCollision)))
-
-        return A, b
-
-    def computeContactForce(self, A, b, solverConfig):
-        x = solveLcp(A, b, solverConfig)
-        gamma = x[0:self.nCollision]
-        beta = x[self.nCollision:(self.nSideLinearCone + 1) * self.nCollision]
-        self.forceCol = self.Dn @ gamma + self.Dt @ beta
-
-
-class SphereSystemWithFrictionCcp(SphereSystem):
-    def __init__(self, initConfigFile, shellRadius, stepSize=1.0e-02,
-                 accelerationDueToGravity=10.0, collisionBuffer=0.1,
-                 frictionCoefficient=0.25):
-        super().__init__(initConfigFile, shellRadius, stepSize,
-                         accelerationDueToGravity, collisionBuffer)
-        self.frictionCoefficient = frictionCoefficient
-        self.D = None
-
-    def computeDirectionMatrix(self):
-        self.D = np.zeros((3 * self.nSphere, 3 * self.nCollision))
-
-        for k in range(self.nCollision):
-            i = self.collisionPairs[k, 0]
-            j = self.collisionPairs[k, 1]
-
-            tangent1, tangent2 = \
-                computeTangentDirections(self.collisionNormals[k, :])
-
-            if i >= 0:
-                iStart, iStop = 3 * i, 3 * i + 3
-                self.D[iStart:iStop, 3 * k] = -self.collisionNormals[k, :]
-                self.D[iStart:iStop, 3 * k + 1] = -tangent1
-                self.D[iStart:iStop, 3 * k + 2] = -tangent2
-
-            jStart, jStop = 3 * j, 3 * j + 3
-            self.D[jStart:jStop, 3 * k] = self.collisionNormals[k, :]
-            self.D[jStart:jStop, 3 * k + 1] = tangent1
-            self.D[jStart:jStop, 3 * k + 2] = tangent2
-
-    def setupComplementarityProblem(self):
-        A = self.D.T @ self.MInv @ self.D
-        b = self.D.T @ self.vKnown
-        return A, b
-
-    def computeContactForce(self, A, b, solverConfig):
-        gamma = solveCcp(A, b, self.frictionCoefficient, solverConfig)
-        self.forceCol = self.D @ gamma
+def createSphereSystem(config, root_dir):
+    initConfig = os.path.join(root_dir, config['initial_configuration'])
+    shellRadius = config['shell_radius']
+    accelerationDueToGravity = config['acceleration_due_to_gravity']
+    stepSize = config['step_size']
+    numStep = config['num_step']
+    outputFreq = config['snapshot_frequency']
+    outputDir = os.path.join(root_dir, config['snapshot_dir'])
+    collisionBuffer = config['collision_buffer']
+    useSeparations = config['use_separations']
+    return SphereSystem(initConfig, shellRadius, accelerationDueToGravity,
+                        stepSize, numStep, outputFreq, outputDir,
+                        collisionBuffer, useSeparations)

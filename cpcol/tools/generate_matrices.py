@@ -1,105 +1,45 @@
 #!/usr/bin/env python3
 
-import os
 import argparse
+import os
 
 import numpy as np
+import yaml
 
-from cpcol.sphere_system import \
-    SphereSystemNoFriction, \
-    SphereSystemWithFrictionLcp, \
-    SphereSystemWithFrictionCcp
+from cpcol.sphere_system import createSphereSystem
+from cpcol.friction_model import createFrictionModel
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--collisionSolver',
+        'config',
         type=str,
-        required=True,
-        choices=['NoFriction', 'WithFrictionLcp', 'WithFrictionCcp'],
-        help='type of collision resolution'
-    )
-    parser.add_argument(
-        '--configFile',
-        type=str,
-        required=True,
-        help='initial system configuration file'
-    )
-    parser.add_argument(
-        '--shellRadius',
-        type=float,
-        required=True,
-        help='radius of outer shell'
-    )
-    parser.add_argument(
-        '--stepSize',
-        type=float,
-        default=1.0e-02,
-        help='time step size'
-    )
-    parser.add_argument(
-        '--accelerationDueToGravity',
-        type=float,
-        default=10.0,
-        help='magnitude of acceleration due to gravity'
-    )
-    parser.add_argument(
-        '--collisionBuffer',
-        type=float,
-        default=0.1,
-        help='maximum relative distance between two spheres in contact'
-    )
-    parser.add_argument(
-        '--frictionCoefficient',
-        type=float,
-        default=0.25,
-        help='coefficient of friction'
-    )
-    parser.add_argument(
-        '--nSideLinearCone',
-        type=int,
-        default=8,
-        help='number of sides in linearized collision cone'
-    )
-    parser.add_argument(
-        '--outputDir',
-        type=str,
-        default='data',
-        help='directory where simulation snapshots will be saved'
+        help='path to YAML config'
     )
 
     args = parser.parse_args()
 
-    if args.collisionSolver == 'NoFriction':
-        system = SphereSystemNoFriction(args.configFile,
-                                        args.shellRadius,
-                                        args.stepSize,
-                                        args.accelerationDueToGravity,
-                                        args.collisionBuffer)
-    elif args.collisionSolver == 'WithFrictionLcp':
-        system = SphereSystemWithFrictionLcp(args.configFile,
-                                             args.shellRadius,
-                                             args.stepSize,
-                                             args.accelerationDueToGravity,
-                                             args.collisionBuffer,
-                                             args.frictionCoefficient,
-                                             args.nSideLinearCone)
-    elif args.collisionSolver == 'WithFrictionCcp':
-        system = SphereSystemWithFrictionCcp(args.configFile,
-                                             args.shellRadius,
-                                             args.stepSize,
-                                             args.accelerationDueToGravity,
-                                             args.collisionBuffer,
-                                             args.frictionCoefficient)
-    else:
-        raise ValueError('unknown collisionSolver')
+    with open(args.config, 'r') as file:
+        config = yaml.safe_load(file)
 
-    system.computeVelocityKnown()
-    system.detectCollisions()
-    system.computeDirectionMatrix()
-    A, b = system.setupComplementarityProblem()
+    root_dir = os.path.dirname(os.path.abspath(args.config))
+    config['root_dir'] = root_dir
 
-    os.makedirs(args.outputDir, exist_ok=True)
-    np.savetxt(os.path.join(args.outputDir, 'A.txt'), A)
-    np.savetxt(os.path.join(args.outputDir, 'b.txt'), b)
+    print(yaml.dump(config))
+
+    sphere_system = createSphereSystem(config['sphere_system'], root_dir)
+    friction_model = createFrictionModel(config['friction_model'])
+
+    sphere_system.computeVelocityKnown()
+    sphere_system.detectCollisions()
+
+    if sphere_system.nCollision > 0:
+        friction_model.computeDirectionMatrix(sphere_system.nSphere,
+                                              sphere_system.collisionPairs,
+                                              sphere_system.collisionNormals)
+        friction_model.computeComplementarityProblem(sphere_system.MInv,
+                                                     sphere_system.vKnown)
+
+        np.savetxt(os.path.join(root_dir, 'A.txt'), friction_model.A)
+        np.savetxt(os.path.join(root_dir, 'b.txt'), friction_model.b)
