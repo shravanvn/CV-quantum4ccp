@@ -17,7 +17,7 @@ following:
 python3 -m pip install -e .
 ```
 This sets up an 'editable' package installation - any change in the source files
-will be automatically sourced on the next (re-)import of the `cpcol` package.
+will be automatically sourced on the next (re-)import of the `cpcol` module.
 
 We recommend creating a fresh virtual environment before the installation step
 using, e.g.,
@@ -37,7 +37,7 @@ Collision code is split into three classes:
 - `SphereSystem` handles setting up a system of spheres inside a larger
   spherical shell, detecting collisions, time stepping, writing snapshots etc.
 
-- `FrictionModel` is concerned about setting up the complementarity model of
+- `FrictionModel` is concerned with setting up the complementarity model of
   rigid contact. Three possibilities are considered:
 
   - No friction, in which case we solve a linear complementarity problem (LCP).
@@ -49,12 +49,12 @@ Collision code is split into three classes:
   In each case, this class sets up the complementarity problem (CP), and parses
   the solution to compute the contact force.
 
-- `CpCollision` actually solves the CP. Currently two methods are available:
+- `CpSolver` actually solves the CP. Currently two methods are available:
 
   - Accelerated projected gradient descent (APGD), works for both LCP and CCP.
   - Minimum-map Newton (mmNewton), only works for LCP.
 
-Each class provides a corresponding `create*` method that instantiates an
+Each module provides a corresponding `create*` method that instantiates an
 appropriate object from a `dict` of options.
 
 ### Utility Scripts
@@ -69,7 +69,7 @@ We provide two utility scripts:
 
 Both scripts require a `config.yaml` file argument; this YAML file lists the
 key-value pairs required to construct a `SphereSystem`, `FrictionModel`, or
-`CpCollision` object via their corresponding `create*` method. See
+`CpSolver` object via their corresponding `create*` method. See
 `../runs/sphere_system_3/config.yaml` for an example.
 
 The `sphere_system` section of the YAML config requires an
@@ -93,12 +93,12 @@ sphere_system:
   initial_configuration: 'init.txt'
   snapshot_dir: 'snapshots'
 
-solver
+solver:
   log_dir: 'solver_logs':
 ```
 along with other options. When you run
 ```
-../cpcol/tools/sphere_simulator.py ../runs/sphere_system_3/config.yaml
+tools/sphere_simulator.py ../runs/sphere_system_3/config.yaml
 ```
 then the directory containing the configuration file is
 `../runs/sphere_system_3`; the script then looks for the initial configuration
