@@ -2,7 +2,7 @@
 name = "cpcol"
 version = "0.1.0"
 description = "Complementarity formulation of rigid body collision"
-dependencies = ["numpy", "vtk"]
+dependencies = ["numpy", "pyyaml", "vtk"]
 readme = "README.md"
 
 [build-system]
