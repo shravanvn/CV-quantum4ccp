@@ -26,7 +26,7 @@ python3 -m venv </path/to/env/dir>
 . </path/to/env/dir>/env/bin/activate
 ```
 
-In case any of the scripts blow throws error due to missing packages, it is
+In case any of the scripts below throws errors due to missing packages, it is
 likely that the package requirements have changed. In that case, rerun the
 editable pip install step from above.
 
@@ -39,15 +39,18 @@ Collision code is split into three classes:
 
 - `FrictionModel` is concerned about setting up the complementarity model of
   rigid contact. Three possibilities are considered:
+
   - No friction, in which case we solve a linear complementarity problem (LCP).
   - With friction, but the friction cone is linearized. In this case we still
     solve an LCP, but is augmented with additional variables.
   - With friction with quadratic friction cone, where we solve a cone
     complementarity problem (CCP).
+
   In each case, this class sets up the complementarity problem (CP), and parses
   the solution to compute the contact force.
 
 - `CpCollision` actually solves the CP. Currently two methods are available:
+
   - Accelerated projected gradient descent (APGD), works for both LCP and CCP.
   - Minimum-map Newton (mmNewton), only works for LCP.
 
@@ -64,7 +67,7 @@ We provide two utility scripts:
 - `tools/sphere_simulator.py` simulates a system of free-falling rigid spheres,
   and writes the system snapshots to VTK files.
 
-Both scripts require a 'config.yaml' file argument; this YAML file lists the
+Both scripts require a `config.yaml` file argument; this YAML file lists the
 key-value pairs required to construct a `SphereSystem`, `FrictionModel`, or
 `CpCollision` object via their corresponding `create*` method. See
 `../runs/sphere_system_3/config.yaml` for an example.
