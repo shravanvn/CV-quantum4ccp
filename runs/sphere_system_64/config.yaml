@@ -1,0 +1,37 @@
+sphere_system:
+  initial_configuration: 'init.txt'
+  shell_radius: 5.0
+  acceleration_due_to_gravity: 10.0
+  step_size: 1.0e-03
+  num_step: 1000
+  snapshot_frequency: 1
+  snapshot_dir: 'snapshots'
+  collision_buffer: 0.1
+  use_separations: false
+
+friction_model:
+  name: 'none'
+
+# friction_model:
+#   name: 'linearized'
+#   num_edge: 8
+#   friction_coefficient: 0.25
+
+# friction_model:
+#   name: 'quadratic'
+#   friction_coefficient: 0.25
+
+# solver:
+#   name: 'apgd'
+#   max_iter: 1000
+#   residual_tol: 1.0e-06
+#   step_size_tol: 1.0e-12
+#   log_dir: 'solver_logs'
+
+solver:
+  name: 'mmnewton'
+  max_iter: 1000
+  residual_tol: 1.0e-06
+  step_size_tol: 1.0e-12
+  save_hessian: true
+  log_dir: 'solver_logs'
