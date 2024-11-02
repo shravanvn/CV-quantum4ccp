@@ -1,7 +1,7 @@
 import os
 
 import numpy as np
-from vtk import vtkPoints, vtkDoubleArray, vtkPolyData, vtkXMLPolyDataWriter
+from vtk import vtkPoints, vtkDoubleArray, vtkPolyData, vtkPolyDataWriter
 
 
 class SphereSystem(object):
@@ -106,7 +106,7 @@ class SphereSystem(object):
 
     def output(self):
         file_name = os.path.join(self.outputDir,
-                                 'snapshot_{:06d}.vtp'.format(self.outputInd))
+                                 'snapshot_{:06d}.vtk'.format(self.outputInd))
 
         points = vtkPoints()
         mass = vtkDoubleArray()
@@ -149,7 +149,7 @@ class SphereSystem(object):
         data.GetPointData().AddArray(velocity)
         data.GetPointData().AddArray(forceCol)
 
-        writer = vtkXMLPolyDataWriter()
+        writer = vtkPolyDataWriter()
         writer.SetInputData(data)
         writer.SetFileName(file_name)
         writer.Write()
