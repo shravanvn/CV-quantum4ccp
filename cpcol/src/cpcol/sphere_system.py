@@ -157,11 +157,21 @@ class SphereSystem(object):
         self.outputInd += 1
 
     def run(self, friction_model, solver):
+        printFreq = (self.numStep + 9) // 10
+
         self.output()
+        print('  0.00% complete')
+
         for iStep in range(1, self.numStep + 1):
             self.step(friction_model, solver)
             if self.outputFreq > 0 and iStep % self.outputFreq == 0:
                 self.output()
+            if iStep % printFreq == 0:
+                percentage = 100.0 * iStep / self.numStep
+                print(f'{percentage:6.2f}% complete')
+
+        if abs(100.0 - round(percentage, 2)) > 1.0e-03:
+            print('100.00% complete')
 
 
 def createSphereSystem(config, root_dir):
