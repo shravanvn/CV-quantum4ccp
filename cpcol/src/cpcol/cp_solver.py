@@ -154,11 +154,18 @@ class MinMapNewtonCpSolver(CpSolver):
         self.stepSizeTol = stepSizeTol
         self.saveHessian = saveHessian
         self.logDir = logDir
+        if saveHessian:
+            self.hessianSizeFile = os.path.join(os.path.dirname(logDir),
+                                                'hessian_sizes.txt')
+            open(self.hessianSizeFile, 'w').close()
 
     def linear_solve(self, prefix, k, A, b):
         x = np.linalg.solve(A, b)
         if self.saveHessian:
             prefixIter = prefix + '_hessian_{:>06d}'.format(k)
+            with open(self.hessianSizeFile, 'a') as fp:
+                fp.write('{:s} {:d}\n'.format(os.path.basename(prefixIter),
+                                              x.size))
             np.savetxt(prefixIter + '_A.txt', A)
             np.savetxt(prefixIter + '_b.txt', b)
             np.savetxt(prefixIter + '_x.txt', x)
