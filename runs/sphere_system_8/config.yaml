@@ -1,12 +1,12 @@
 sphere_system:
   initial_configuration: 'init.txt'
-  shell_radius: 4.0
+  shell_radius: 5.0
   acceleration_due_to_gravity: 10.0
-  step_size: 1.0e-03
-  num_step: 10000
-  snapshot_frequency: 10
+  step_size: 1.0e-02
+  num_step: 1000
+  snapshot_frequency: 1
   snapshot_dir: 'snapshots'
-  collision_buffer: 0.01
+  collision_buffer: 0.05
   use_separations: false
 
 friction_model:
