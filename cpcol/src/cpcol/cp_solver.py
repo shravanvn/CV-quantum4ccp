@@ -141,8 +141,8 @@ class ApgdCpSolver(CpSolver):
         return self.solve(A, b, projectLcp, residualLcp, uid)
 
     def solveCcp(self, A, b, mu, uid=None):
-        return self.solve(A, b, projectCcp, lambda x, g: residualCcp(x, g, mu),
-                          uid)
+        return self.solve(A, b, lambda x: projectCcp(x, mu),
+                          lambda x, g: residualCcp(x, g, mu), uid)
 
 
 class MinMapNewtonCpSolver(CpSolver):
